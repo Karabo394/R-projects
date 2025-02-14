@@ -1,0 +1,212 @@
+---
+title: "Italian Restaurant analysis"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+date: "2025-01-07"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## My analysis starts here
+
+* Dataset consists of 10000 observations and 9 variables for the calender year 2024.  
+* Variables : Date ,Time ,Menu item , Category , Quantity purchased ,Price per item , Revenue , Payment method , Customer type
+* No null observations
+* Currency : Euro
+
+```{r cars, message=FALSE, warning=FALSE,echo=T}
+
+library(readr)
+library(tidyverse)
+library(readxl)
+library(sqldf)
+library(stringr)
+library(knitr)
+
+df <-read_excel('C:\\Users\\karab\\Videos\\JOB_Projects\\Italian_resteurant_dataset.xlsx')
+head(df)
+
+```
+
+
+```{r aee, message=FALSE, warning=FALSE, echo=T}
+# Problem with date, convert to date
+data<-df
+data$Date<-as.Date(data$Date)
+
+data <-data %>%mutate(AM_PM=str_extract(Time,'AM|PM'),Month=months.Date(Date),
+                       Week_day=weekdays(Date))%>%select(-c(Date,Time))
+
+
+mat <-matrix(0,nrow = 3,ncol = 2)
+mat[,1]<-c('Price','Revenue','Quantity purchased')
+mat[,2]<-c(round(mean(data$`Price (per item)`),2) , round(mean(data$Revenue),2) , round(mean(data$Quantity)))
+colnames(mat)<- c('-','Average')
+kable(mat)
+####
+print('Total revenue for each Category')
+
+revenue_by_category <- data %>% select(Category,`Price (per item)`,Revenue,Quantity) %>%
+  group_by(Category) %>% summarise(Average_price=round(mean(`Price (per item)`),2) , Total_customers= length(Category),
+  Quantities_purchased=sum(Quantity) ,Total_revenue=sum(Revenue)) %>% arrange(desc(Total_revenue))
+kable(revenue_by_category)
+
+revenue_by_category %>% ggplot(aes(x=Category,y=Total_revenue)) + geom_bar(stat='Identity',
+aes(fill = Category)) + scale_y_continuous(labels =scales::comma ) + 
+  geom_text(aes(label = Total_revenue),position = position_stack(vjust=0.9)) + 
+  labs(title = 'Total revenue for each category', y=' Total revenue(Euro)') + 
+  theme(plot.title = element_text(hjust = 0.5))    
+
+####
+```
+
+
+**Total revenue per Category for each menu item'**
+
+```{r a, message=FALSE, warning=FALSE,echo=T}
+
+Revenue_per_category_by_menu_item <- data %>% select(Category,Quantity,`Menu Item`,Revenue)%>%
+  group_by(Category,`Menu Item`) %>% summarise(Total_customers=length(`Menu Item`),                    Total_quantity=sum(Quantity),Total_Revenue=round(sum(Revenue)))
+
+kable(Revenue_per_category_by_menu_item)
+
+Revenue_per_category_by_menu_item %>% ggplot(aes(x=`Menu Item`,y=Total_Revenue,fill = `Menu Item`)) +
+  geom_bar(stat='Identity') +labs(title = 'Total revenue for each menu item',y= 'Total revenue (Euro)') + geom_text(aes(label=Total_Revenue),angle=50,position = position_stack(vjust=0.5)) +
+  theme_dark()+theme(axis.text.x = element_text(angle = 45,hjust=1),
+                     plot.title = element_text(hjust = 0.5))
+
+####
+```
+
+
+**Customer time preference (AM or PM)**
+```{r b,echo=T, message=FALSE, warning=FALSE}
+customer_preferred_time <- data%>% select(AM_PM,Revenue) %>%
+  group_by(AM_PM)%>%
+summarise(Total_customers=length(AM_PM),Revenue=round(sum(Revenue)))
+
+kable(customer_preferred_time)
+
+customer_preferred_time %>% ggplot(aes(x=AM_PM,y=Revenue,fill = AM_PM)) +
+  geom_bar(stat='Identity') + labs(title = ' Revenue by meridiem(time) preferrence ', 
+  y='Total revenue (Euro)',x='Meridiem') + geom_text(aes(label = Revenue),
+ position = position_stack(vjust=0.9)) + scale_y_continuous(labels = scales::comma) +theme_minimal()
+
+
+#### 
+```
+
+
+**Customer Payment Preference**
+```{r c,echo=T, message=FALSE, warning=FALSE}
+payment_preference<- data%>% select(`Payment Method`) %>%group_by(`Payment Method`) %>%
+  summarise(Total_customers=length(`Payment Method`)) %>% arrange(Total_customers)
+kable(payment_preference)
+
+payment_preference %>% ggplot(aes(x=`Payment Method`,y=Total_customers))+
+  geom_point(col=c('red','black','blue'),size=4,shape=15)+
+  labs( title = "Customer's payment method preference") +
+  theme(plot.title = element_text(hjust=0.4))+theme_classic() +
+  geom_text(aes(label = Total_customers),
+            hjust=-0.5,col=c('red','black','blue'))+theme_gray()
+####
+```
+
+
+**customer type in terms of food distribution**
+```{r d,echo=T, message=FALSE, warning=FALSE}
+customer_type<-data %>% select(`Customer Type`)%>%group_by(`Customer Type`) %>%
+  summarise(Total_customers=length(`Customer Type`)) %>% 
+  arrange(Total_customers) %>%rename(Service_type=`Customer Type`)
+
+kable(customer_type)
+
+customer_type%>%ggplot(aes(x=Service_type,y=Total_customers)) +
+  geom_point(col=c('red','black','purple'),size=5,shape=20) +theme_classic() + 
+  geom_text(aes(label = Total_customers),hjust=-0.4,col=c('red','black','purple'))+
+  labs(title = "Service type preference")+theme(element_text(hjust = 0.5))
+
+#### 
+```
+
+
+**Monthly Revenue**
+```{r e,echo=T, message=FALSE, warning=FALSE}
+monthly_revenue <- data %>% select(Month,Revenue,Category) %>% group_by(Month,Category)%>%
+  summarise(Total_revenue= round(sum(Revenue))) %>% 
+  arrange(factor(Month,levels = c("January","February","March","April", "May" ,"June",
+   "July", "August","September" ,"October","November","December" )))
+
+kable(monthly_revenue%>%select(Month,Total_revenue) %>% group_by(Month) %>%
+        summarise(Total_revenue=sum(Total_revenue)))
+
+monthly_revenue %>% ggplot(aes(x=Month,y=Total_revenue,fill = Category))+
+  geom_bar(stat = 'Identity',position = 'dodge') + labs(y='Total revenue (Euro)',
+ title = 'Monthly revenue stacked by Category')+ 
+  scale_fill_manual(values = c('Violet','#4B4','lightblue')) +
+  theme_classic() +theme(axis.text.x=element_text(angle = 45,hjust = 1),
+                         plot.title = element_text(hjust=0.5)) 
+
+####
+```
+
+
+**Weekdays revenue**
+```{r f,echo=T, message=FALSE, warning=FALSE}
+weekly_revenue <- data %>% select(Week_day,Revenue) %>% group_by(Week_day) %>%
+  summarise(Total_revenue= round(sum(Revenue))) %>% arrange(factor(Week_day,
+  levels = c("Monday" ,"Tuesday","Wednesday" ,"Thursday","Friday","Saturday","Sunday" )))
+
+kable(weekly_revenue)
+
+weekly_revenue %>% ggplot(aes(x=Week_day,y=Total_revenue,fill = Week_day))+ 
+  geom_bar(stat = 'Identity') + theme_minimal() +labs(title = 'Daily revenue trend',
+  y='Total revenue (Euro)')+ theme(plot.title = element_text(hjust = 0.5),
+ axis.text.x=element_text(angle = 45,hjust = 1)) +
+  geom_text(aes(label = Total_revenue),angle=60,position = position_stack(vjust=0.7))
+
+####
+
+```
+
+
+
+
+### Insights
+
+ 
+ * Food items from the *Main course* category generates more revenue(139581.5 Euros) than the *Appetizer* and *Dessert* categories, with Dessert generating the least revenue(50541 Euros) among the three categories
+ 
+ 
+ * *Fettuccine Alfredo* and *Toramisu* are the most liked food items by customers, *Caprese Salad* is the least favourite
+ 
+ 
+ * *Fettuccine Alfredo* ,*Spaghetti Carbonara* and *Lasagna* are the top three revenue generating food items, *Gelato* and *Panna Cotta* generate way less revenue
+ 
+ 
+ * Most customers buy more in the Afternoon or Evening (PM) than they do in the Morning (AM), hence the Restaurant generates more revenue in post meridiem (PM)
+ 
+ * Most customer prefer paying *cash* compared to the likes of *Credit card* and *Mobile payment*
+ 
+ * Most customers prefer *Takeaways* than *Delivery* and *eating in-store*
+ 
+ * *August* and *October* generated the most revenue with *June* and *February* generating lowest revenue
+ 
+ * The revenue of the weekdays is quite negligible, the difference is barely visible, but *Sunday* seems to generate more revenue than the other weekdays, with *Monday*
+ generating the least  revenue
+ 
+
+```{r pressure, echo=FALSE}
+```
+
+
+
+
+
+
+
